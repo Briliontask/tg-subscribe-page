@@ -12,7 +12,13 @@ exports.handler = async (event) => {
     return response(400, { error: "Missing or invalid id" });
   }
 
-  const store = getStore("crm-links");
+  const store = openStore();
+  if (!store) {
+    return response(500, {
+      error:
+        "Blobs is not configured. Set BLOBS_SITE_ID and BLOBS_TOKEN in Netlify environment variables."
+    });
+  }
   const record = await store.get(id, { type: "json" });
 
   if (!record || !isHttpUrl(String(record.url || ""))) {
@@ -40,5 +46,26 @@ function isHttpUrl(value) {
     return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch (_) {
     return false;
+  }
+}
+
+function openStore() {
+  try {
+    return getStore("crm-links");
+  } catch (_) {
+    const siteID =
+      process.env.BLOBS_SITE_ID ||
+      process.env.NETLIFY_SITE_ID ||
+      process.env.SITE_ID;
+    const token =
+      process.env.BLOBS_TOKEN ||
+      process.env.NETLIFY_API_TOKEN ||
+      process.env.NETLIFY_TOKEN;
+
+    if (!siteID || !token) {
+      return null;
+    }
+
+    return getStore("crm-links", { siteID, token });
   }
 }
