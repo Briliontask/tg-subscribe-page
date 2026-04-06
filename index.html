@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Suscribirse</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #0f172a;
+      }
+
+      .subscribe-button {
+        border: none;
+        border-radius: 14px;
+        padding: 20px 44px;
+        font-size: clamp(24px, 4vw, 36px);
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #ffffff;
+        background: linear-gradient(135deg, #2563eb, #7c3aed);
+        cursor: pointer;
+        box-shadow: 0 14px 30px rgba(37, 99, 235, 0.4);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .subscribe-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 34px rgba(37, 99, 235, 0.5);
+      }
+
+      .subscribe-button:active {
+        transform: translateY(0);
+      }
+
+      .subscribe-button:disabled {
+        opacity: 0.7;
+        cursor: progress;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="subscribeButton" class="subscribe-button" type="button">
+      SUSCRIBIRSE
+    </button>
+
+    <script src="./links.js"></script>
+    <script>
+      const FALLBACK_URL = "https://example.com";
+      const params = new URLSearchParams(window.location.search);
+      const shortId = params.get("id");
+      const directTarget = params.get("target");
+      const encodedTarget = params.get("r");
+      const aliases = window.CRM_LINKS || {};
+      const fromAlias = shortId ? aliases[shortId] : null;
+      const fromEncoded = decodeBase64Url(encodedTarget);
+      const rawTarget = fromAlias || fromEncoded || directTarget || FALLBACK_URL;
+      let targetUrl = resolveSafeUrl(rawTarget);
+      const button = document.getElementById("subscribeButton");
+
+      function decodeBase64Url(value) {
+        if (!value) {
+          return null;
+        }
+        try {
+          const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+          const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+          return atob(padded);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      // Only allow http(s) URLs from query params.
+      function resolveSafeUrl(value) {
+        try {
+          const parsed = new URL(value);
+          if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+            return parsed.toString();
+          }
+        } catch (_) {}
+        return FALLBACK_URL;
+      }
+
+      button.addEventListener("click", () => {
+        window.location.href = targetUrl;
+      });
+
+      // If id is not found in local aliases, resolve it from Netlify function.
+      if (shortId && !fromAlias) {
+        button.disabled = true;
+        button.textContent = "CARGANDO...";
+        resolveRemoteId(shortId)
+          .then((url) => {
+            if (url) {
+              targetUrl = resolveSafeUrl(url);
+            }
+          })
+          .finally(() => {
+            button.disabled = false;
+            button.textContent = "SUSCRIBIRSE";
+          });
+      }
+
+      async function resolveRemoteId(id) {
+        try {
+          const response = await fetch(
+            `/.netlify/functions/get-link?id=${encodeURIComponent(id)}`
+          );
+          if (!response.ok) {
+            return null;
+          }
+          const data = await response.json();
+          return String(data.url || "");
+        } catch (_) {
+          return null;
+        }
+      }
+    </script>
+  </body>
+</html>
